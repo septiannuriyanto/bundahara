@@ -46,9 +46,9 @@ export const Button: React.FC<ButtonProps> = ({
         border: "1px solid rgba(168, 85, 247, 0.25)"
       },
       glass: {
-        background: "rgba(255, 255, 255, 0.05)",
+        background: "var(--glass-bg)",
         color: "var(--text-primary)",
-        border: "1px solid rgba(255, 255, 255, 0.1)",
+        border: "1px solid var(--glass-border)",
         backdropFilter: "blur(4px)"
       },
       danger: {
@@ -73,8 +73,8 @@ export const Button: React.FC<ButtonProps> = ({
     } else if (variant === "secondary") {
       e.currentTarget.style.background = "rgba(168, 85, 247, 0.25)";
     } else if (variant === "glass") {
-      e.currentTarget.style.background = "rgba(255, 255, 255, 0.08)";
-      e.currentTarget.style.borderColor = "rgba(255, 255, 255, 0.2)";
+      e.currentTarget.style.background = "var(--glass-hover-bg)";
+      e.currentTarget.style.borderColor = "var(--glass-border)";
     } else if (variant === "danger") {
       e.currentTarget.style.background = "rgba(239, 68, 68, 0.2)";
     }

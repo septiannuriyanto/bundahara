@@ -43,73 +43,48 @@ export const AuthPages: React.FC<AuthPagesProps> = ({ onAuthSuccess, onNavigateH
   };
 
   return (
-    <div
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        justifyContent: "center",
-        minHeight: "100vh",
-        padding: "24px",
-        position: "relative"
-      }}
-    >
-      {/* Back to Home Button */}
-      <button
-        onClick={onNavigateHome}
-        style={{
-          position: "absolute",
-          top: "24px",
-          left: "24px",
-          background: "none",
-          border: "none",
-          color: "var(--text-secondary)",
-          cursor: "pointer",
-          display: "flex",
-          alignItems: "center",
-          gap: "8px",
-          fontWeight: 600,
-          fontSize: "0.9rem",
-          transition: "var(--transition-smooth)"
-        }}
-        onMouseEnter={(e) => (e.currentTarget.style.color = "var(--text-primary)")}
-        onMouseLeave={(e) => (e.currentTarget.style.color = "var(--text-secondary)")}
-      >
-        <ArrowLeft size={18} /> Kembali ke Beranda
-      </button>
+    <div className="auth-page-shell">
+      <div className="glass-panel auth-card animate-fade-in">
+        <div className="auth-header">
+          <Button variant="glass" size="sm" onClick={onNavigateHome} className="auth-back-btn">
+            <ArrowLeft size={18} /> Kembali ke Beranda
+          </Button>
 
-      <div
-        className="glass-panel animate-fade-in"
-        style={{
-          width: "100%",
-          maxWidth: "420px",
-          padding: "40px 32px",
-          backgroundColor: "rgba(20, 16, 33, 0.8)",
-          display: "flex",
-          flexDirection: "column",
-          gap: "24px"
-        }}
-      >
-        <div style={{ textAlign: "center" }}>
-          <h2 style={{ fontSize: "1.75rem", fontWeight: 800, margin: "0 0 8px" }} className="text-gradient">
-            {isLogin ? "Selamat Datang" : "Daftar Akun"}
-          </h2>
-          <p style={{ color: "var(--text-secondary)", fontSize: "0.9rem" }}>
+          <div className="auth-toggle-row">
+            <Button
+              variant={isLogin ? "primary" : "glass"}
+              size="sm"
+              onClick={() => setIsLogin(true)}
+              style={{ minWidth: "108px" }}
+            >
+              Masuk
+            </Button>
+            <Button
+              variant={!isLogin ? "primary" : "glass"}
+              size="sm"
+              onClick={() => setIsLogin(false)}
+              style={{ minWidth: "108px" }}
+            >
+              Daftar
+            </Button>
+          </div>
+        </div>
+
+        <div className="auth-copy">
+          <h2 className="text-gradient">{isLogin ? "Selamat Datang" : "Daftar Akun"}</h2>
+          <p>
             {isLogin
               ? "Masuk untuk mengelola keuangan bendahara kelas Anda"
               : "Buat akun bendahara kelas Anda sekarang"}
           </p>
         </div>
 
-        <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+        <form onSubmit={handleSubmit} className="auth-form">
           {!isLogin && (
-            <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+            <div className="auth-input-group">
               <label>Nama Lengkap / Nama Panggilan</label>
-              <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
-                <User
-                  size={18}
-                  style={{ position: "absolute", left: "16px", color: "var(--text-muted)" }}
-                />
+              <div className="auth-input-with-icon">
+                <User size={18} />
                 <TextInput
                   value={displayName}
                   onChange={setDisplayName}
@@ -121,13 +96,10 @@ export const AuthPages: React.FC<AuthPagesProps> = ({ onAuthSuccess, onNavigateH
             </div>
           )}
 
-          <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+          <div className="auth-input-group">
             <label>Alamat Email</label>
-            <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
-              <Mail
-                size={18}
-                style={{ position: "absolute", left: "16px", color: "var(--text-muted)" }}
-              />
+            <div className="auth-input-with-icon">
+              <Mail size={18} />
               <TextInput
                 type="email"
                 value={email}
@@ -139,13 +111,10 @@ export const AuthPages: React.FC<AuthPagesProps> = ({ onAuthSuccess, onNavigateH
             </div>
           </div>
 
-          <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+          <div className="auth-input-group">
             <label>Kata Sandi</label>
-            <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
-              <KeyRound
-                size={18}
-                style={{ position: "absolute", left: "16px", color: "var(--text-muted)" }}
-              />
+            <div className="auth-input-with-icon">
+              <KeyRound size={18} />
               <TextInput
                 type="password"
                 value={password}
@@ -157,28 +126,16 @@ export const AuthPages: React.FC<AuthPagesProps> = ({ onAuthSuccess, onNavigateH
             </div>
           </div>
 
-          <Button type="submit" variant="primary" style={{ marginTop: "8px" }} disabled={isLoading}>
+          <Button type="submit" variant="primary" className="auth-submit-btn" disabled={isLoading}>
             {isLoading ? "Memproses..." : isLogin ? "Masuk ke Akun" : "Daftar Sekarang"}
           </Button>
         </form>
 
-        <div style={{ textAlign: "center", fontSize: "0.85rem", color: "var(--text-secondary)" }}>
-          {isLogin ? "Belum punya akun?" : "Sudah punya akun?"}{" "}
-          <button
-            onClick={() => setIsLogin(!isLogin)}
-            style={{
-              background: "none",
-              border: "none",
-              color: "var(--color-primary)",
-              fontWeight: 600,
-              cursor: "pointer",
-              fontFamily: "inherit"
-            }}
-            onMouseEnter={(e) => (e.currentTarget.style.textDecoration = "underline")}
-            onMouseLeave={(e) => (e.currentTarget.style.textDecoration = "none")}
-          >
+        <div className="auth-switch-text">
+          <span>{isLogin ? "Belum punya akun?" : "Sudah punya akun?"}</span>
+          <Button type="button" variant="glass" size="sm" onClick={() => setIsLogin(!isLogin)}>
             {isLogin ? "Daftar di sini" : "Masuk di sini"}
-          </button>
+          </Button>
         </div>
       </div>
     </div>
