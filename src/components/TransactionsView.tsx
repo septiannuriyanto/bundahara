@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 
 type ActiveTab = "income" | "expense" | "all";
+type TransactionType = "income" | "expense";
 type SortKey = "date" | "amount" | "pic" | "description" | "type";
 type SortDir = "asc" | "desc";
 
@@ -85,6 +86,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
   const [nominal, setNominal] = useState<number>(0);
+  const [transactionType, setTransactionType] = useState<TransactionType>("income");
   const [pic, setPic] = useState("");
   const [description, setDescription] = useState("");
   const [proofOfPayment, setProofOfPayment] = useState("");
@@ -178,6 +180,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
   const handleOpenAddForm = () => {
     setEditId(null);
     setNominal(0);
+    setTransactionType(activeTab === "expense" ? "expense" : "income");
     setPic("");
     setDescription("");
     setProofOfPayment("");
@@ -189,6 +192,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
   const handleOpenEditForm = (tx: BalanceSheet) => {
     setEditId(tx.id);
     setNominal(tx.amount);
+    setTransactionType(tx.type);
     setPic(tx.pic);
     setDescription(tx.description || "");
     setProofOfPayment(tx.proofOfPayment || "");
@@ -235,13 +239,24 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
       }
       if (editId) {
         await dbService.updateTransaction(editId, {
-          amount: nominal, pic: pic.trim(), description: description.trim(), proofOfPayment: uploadedUrl, date: new Date(transactionDate).getTime()
+          type: transactionType,
+          amount: nominal,
+          pic: pic.trim(),
+          description: description.trim(),
+          proofOfPayment: uploadedUrl,
+          date: new Date(transactionDate).getTime()
         });
         showToast("Transaksi berhasil diperbarui!", "success");
       } else {
         await dbService.addTransaction(
-          selectedOrgId, selectedBranchId, activeTab === "all" ? "income" : activeTab,
-          nominal, new Date(transactionDate).getTime(), pic.trim(), description.trim(), uploadedUrl
+          selectedOrgId,
+          selectedBranchId,
+          activeTab === "all" ? transactionType : activeTab,
+          nominal,
+          new Date(transactionDate).getTime(),
+          pic.trim(),
+          description.trim(),
+          uploadedUrl
         );
         showToast("Transaksi berhasil disimpan!", "success");
       }
@@ -399,12 +414,12 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
               <label>Tanggal</label>
               <input type="date" value={transactionDate} onChange={e => setTransactionDate(e.target.value)} style={{ width: "100%", padding: "10px 14px", borderRadius: "8px", fontSize: "0.95rem", border: "1px solid var(--panel-border)", background: "var(--input-bg)", color: "var(--text-primary)" }} />
             </div>
-            {activeTab === "all" && !editId && (
+            {activeTab === "all" && (
               <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
                 <label>Jenis Transaksi</label>
                 <select
-                  value={pic ? "income" : "expense"}
-                  onChange={() => {}}
+                  value={transactionType}
+                  onChange={e => setTransactionType(e.target.value as TransactionType)}
                   style={{ padding: "10px 14px", borderRadius: "8px", background: "var(--panel-bg)", border: "1px solid var(--panel-border)", color: "var(--text-primary)", cursor: "pointer" }}
                 >
                   <option value="income">Pemasukan</option>
@@ -412,7 +427,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
                 </select>
               </div>
             )}
-            <Input label="Nominal Transaksi" value={nominal} onChange={setNominal} isCurrency={true} placeholder="e.g. 50.000" required />
+            <Input label="Nominal Transaksi" value={nominal === 0 ? "" : nominal} onChange={setNominal} isCurrency={true} placeholder="e.g. 50.000" required />
             <TextInput label="Person In Contact (PIC)" value={pic} onChange={setPic} placeholder="Nama penanggung jawab" required />
             <TextInput label="Deskripsi / Catatan (Optional)" value={description} onChange={setDescription} placeholder="e.g. Pembelian spidol kelas" />
             <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
