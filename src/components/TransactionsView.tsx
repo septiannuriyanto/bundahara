@@ -424,8 +424,8 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
         <div style={{ display: "flex", background: "rgba(255, 255, 255, 0.03)", padding: "4px", borderRadius: "10px", border: "1px solid var(--panel-border)", gap: "2px" }}>
           {([
             { key: "all" as ActiveTab, label: "Semua", icon: <LayoutList size={15} />, active: "var(--color-primary-glow)", activeColor: "var(--color-primary)" },
-            { key: "income" as ActiveTab, label: "Pemasukan", icon: <TrendingUp size={15} />, active: "var(--color-success-bg)", activeColor: "var(--color-success)" },
-            { key: "expense" as ActiveTab, label: "Pengeluaran", icon: <TrendingDown size={15} />, active: "var(--color-error-bg)", activeColor: "var(--color-error)" }
+            { key: "income" as ActiveTab, label: "In", icon: <TrendingUp size={15} />, active: "var(--color-success-bg)", activeColor: "var(--color-success)" },
+            { key: "expense" as ActiveTab, label: "Out", icon: <TrendingDown size={15} />, active: "var(--color-error-bg)", activeColor: "var(--color-error)" }
           ] as const).map(tab => (
             <button
               key={tab.key}
