@@ -18,6 +18,7 @@ import {
   MoreVertical,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
   CalendarDays
 } from "lucide-react";
 import Chart from "react-apexcharts";
@@ -63,6 +64,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const [orgCanScrollRight, setOrgCanScrollRight] = useState(false);
   const [branchCanScrollLeft, setBranchCanScrollLeft] = useState(false);
   const [branchCanScrollRight, setBranchCanScrollRight] = useState(false);
+  const [exportMenuOpen, setExportMenuOpen] = useState(false);
 
   const updateScrollState = useCallback((ref: React.RefObject<HTMLDivElement | null>, setLeft: (v: boolean) => void, setRight: (v: boolean) => void) => {
     const el = ref.current;
@@ -126,10 +128,27 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const currentOrg = organizations.find(o => o.id === selectedOrgId);
   const currentBranch = branches[selectedOrgId]?.find(b => b.id === selectedBranchId);
 
+  const loadDashboardAnalytics = useCallback(async () => {
+    try {
+      const summary = await dbService.getAnalytics(selectedOrgId, selectedBranchId);
+      const txList = await dbService.getTransactions(selectedOrgId, selectedBranchId);
+      setAnalytics(summary);
+      setTransactions(txList);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Gagal memuat analitik dashboard.";
+      showToast(message, "error");
+    }
+  }, [selectedOrgId, selectedBranchId, showToast]);
+
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => {
-    if (selectedOrgId && selectedBranchId) {
-      loadDashboardAnalytics();
-    } else {
+    if (!selectedOrgId || !selectedBranchId) return;
+    void loadDashboardAnalytics();
+  }, [selectedOrgId, selectedBranchId, loadDashboardAnalytics]);
+
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(() => {
+    if (!selectedOrgId || !selectedBranchId) {
       setAnalytics(null);
       setTransactions([]);
     }
@@ -153,16 +172,17 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     return { ...analytics, totalIncome, totalExpense, balance: totalIncome - totalExpense };
   })();
 
-  const loadDashboardAnalytics = async () => {
-    try {
-      const summary = await dbService.getAnalytics(selectedOrgId, selectedBranchId);
-      const txList = await dbService.getTransactions(selectedOrgId, selectedBranchId);
-      setAnalytics(summary);
-      setTransactions(txList);
-    } catch (error: any) {
-      showToast(error.message || "Gagal memuat analitik dashboard.", "error");
-    }
-  };
+  const previousMonthBalance = (() => {
+    if (!selectedMonth) return 0;
+    const [year, month] = selectedMonth.split("-");
+    const startOfMonth = new Date(Number(year), Number(month) - 1, 1).getTime();
+    return transactions.reduce((balance, tx) => {
+      if (tx.date < startOfMonth) {
+        return balance + (tx.type === "income" ? tx.amount : -tx.amount);
+      }
+      return balance;
+    }, 0);
+  })();
 
   const handleAddOrg = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -189,8 +209,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       setIsAddOrgOpen(false);
       await onRefreshData();
       onSelectOrg(newOrg.id);
-    } catch (error: any) {
-      showToast(error.message || "Gagal membuat organisasi baru.", "error");
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Gagal membuat organisasi baru.";
+      showToast(message, "error");
     }
   };
 
@@ -207,8 +228,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       setIsAddBranchOpen(false);
       await onRefreshData();
       onSelectBranch(newBranch.id);
-    } catch (error: any) {
-      showToast(error.message || "Gagal menambahkan cabang.", "error");
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Gagal menambahkan cabang.";
+      showToast(message, "error");
     }
   };
 
@@ -229,8 +251,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       setIsEditOrgOpen(false);
       setEditOrgLogoFile(null);
       await onRefreshData();
-    } catch (error: any) {
-      showToast(error.message || "Gagal mengubah nama organisasi.", "error");
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Gagal mengubah nama organisasi.";
+      showToast(message, "error");
     }
   };
 
@@ -245,8 +268,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       showToast("Nama cabang berhasil diperbarui!", "success");
       setIsEditBranchOpen(false);
       await onRefreshData();
-    } catch (error: any) {
-      showToast(error.message || "Gagal mengubah nama cabang.", "error");
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Gagal mengubah nama cabang.";
+      showToast(message, "error");
     }
   };
 
@@ -262,8 +286,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       }
       await onRefreshData();
       setDeleteTarget(null);
-    } catch (error: any) {
-      showToast(error.message || "Gagal melakukan penghapusan.", "error");
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Gagal melakukan penghapusan.";
+      showToast(message, "error");
     }
   };
 
@@ -273,132 +298,193 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     try {
       const doc = new jsPDF();
 
-      // Parse period label from selectedMonth (YYYY-MM)
-      const [year, month] = selectedMonth.split("-");
-      const periodLabel = new Date(parseInt(year), parseInt(month) - 1, 1)
-        .toLocaleDateString("id-ID", { year: "numeric", month: "long" });
+          // Parse period label from selectedMonth (YYYY-MM)
+          const [year, month] = selectedMonth.split("-");
+          const periodLabel = new Date(parseInt(year), parseInt(month) - 1, 1)
+            .toLocaleDateString("id-ID", { year: "numeric", month: "long" });
 
-      // Financial summary from month-filtered analytics
-      const income = filteredAnalytics?.totalIncome || 0;
-      const expense = filteredAnalytics?.totalExpense || 0;
-      const balance = filteredAnalytics?.balance || 0;
+          const income = filteredAnalytics?.totalIncome || 0;
+          const expense = filteredAnalytics?.totalExpense || 0;
+          const balance = filteredAnalytics?.balance || 0;
+          const openingBalance = previousMonthBalance;
 
-      // ── Header Block ──────────────────────────────────────────────────
-      doc.setFillColor(26, 21, 40);
-      doc.rect(0, 0, 210, 48, "F");
+          doc.setFillColor(26, 21, 40);
+          doc.rect(0, 0, 210, 48, "F");
 
-      // Embed logo if available (placed top-right of header)
-      const logoUrl = currentOrg.logoUrl;
-      if (logoUrl && logoUrl.startsWith("data:image")) {
-        try {
-          const ext = logoUrl.includes("image/png") ? "PNG" : "JPEG";
-          doc.addImage(logoUrl, ext, 168, 6, 36, 36);
-        } catch (_) { /* skip logo if error */ }
-      }
-
-      doc.setTextColor(255, 255, 255);
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(20);
-      doc.text("LAPORAN KAS", 14, 18);
-
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(10);
-      doc.text(`Organisasi : ${currentOrg.name}`, 14, 28);
-      doc.text(`Cabang     : ${currentBranch.name}`, 14, 34);
-      doc.text(`Periode    : ${periodLabel}`, 14, 40);
-      doc.text(`Dicetak    : ${new Date().toLocaleDateString("id-ID")}`, 110, 40);
-
-      // ── Summary Block ─────────────────────────────────────────────────
-      doc.setTextColor(0, 0, 0);
-      doc.setFontSize(10);
-      doc.setFont("helvetica", "bold");
-      doc.text("RINGKASAN FINANSIAL", 14, 58);
-
-      // Summary table (3 cards inline)
-      const summaryData = [
-        ["Total Pemasukan", `Rp ${income.toLocaleString("id-ID")}`],
-        ["Total Pengeluaran", `Rp ${expense.toLocaleString("id-ID")}`],
-        ["Saldo Bersih", `Rp ${balance.toLocaleString("id-ID")}`],
-      ];
-      autoTable(doc, {
-        startY: 62,
-        head: [["Keterangan", "Jumlah"]],
-        body: summaryData,
-        theme: "plain",
-        headStyles: { fillColor: [240, 240, 240], textColor: [80, 80, 80], fontSize: 9, fontStyle: "bold" },
-        styles: { fontSize: 9.5, cellPadding: 3.5 },
-        columnStyles: {
-          0: { cellWidth: 60 },
-          1: { fontStyle: "bold", cellWidth: 60 }
-        },
-        didDrawCell: (data) => {
-          // Highlight saldo row
-          if (data.row.index === 2 && data.column.index === 1) {
-            doc.setTextColor(balance >= 0 ? 22 : 220, balance >= 0 ? 163 : 38, balance >= 0 ? 74 : 38);
+          const logoUrl = currentOrg.logoUrl;
+          if (logoUrl && logoUrl.startsWith("data:image")) {
+            try {
+              const ext = logoUrl.includes("image/png") ? "PNG" : "JPEG";
+              doc.addImage(logoUrl, ext, 168, 6, 36, 36);
+            } catch {
+              // skip logo if error
+            }
           }
-        },
-        margin: { left: 14 },
-        tableWidth: 120
-      });
 
-      const afterSummaryY = (doc as any).lastAutoTable.finalY + 8;
+          doc.setTextColor(255, 255, 255);
+          doc.setFont("helvetica", "bold");
+          doc.setFontSize(20);
+          doc.text("LAPORAN KAS", 14, 18);
 
-      // Divider
-      doc.setDrawColor(220, 220, 220);
-      doc.line(14, afterSummaryY, 196, afterSummaryY);
+          doc.setFont("helvetica", "normal");
+          doc.setFontSize(10);
+          doc.text(`Organisasi : ${currentOrg.name}`, 14, 28);
+          doc.text(`Cabang     : ${currentBranch.name}`, 14, 34);
+          doc.text(`Periode    : ${periodLabel}`, 14, 40);
+          doc.text(`Dicetak    : ${new Date().toLocaleDateString("id-ID")}`, 110, 40);
 
-      // ── Transaction Table ─────────────────────────────────────────────
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(10);
-      doc.setTextColor(0, 0, 0);
-      doc.text(`DAFTAR TRANSAKSI – ${periodLabel.toUpperCase()}`, 14, afterSummaryY + 8);
+          doc.setTextColor(0, 0, 0);
+          doc.setFontSize(10);
+          doc.setFont("helvetica", "bold");
+          doc.text("RINGKASAN FINANSIAL", 14, 58);
 
-      // Compute running balance for table
-      let runningBalance = 0;
-      const tableData = filteredTransactions
-        .sort((a, b) => a.date - b.date)
-        .map((t, idx) => {
-          runningBalance += t.type === "income" ? t.amount : -t.amount;
-          return [
-            idx + 1,
-            new Date(t.date).toLocaleDateString("id-ID"),
-            t.type === "income" ? "Pemasukan" : "Pengeluaran",
-            `Rp ${t.amount.toLocaleString("id-ID")}`,
-            t.pic,
-            t.description || "-",
-            `Rp ${runningBalance.toLocaleString("id-ID")}`
+          const summaryData = [
+            ["Saldo Bulan Lalu", `Rp ${openingBalance.toLocaleString("id-ID")}`],
+            ["Total Pemasukan", `Rp ${income.toLocaleString("id-ID")}`],
+            ["Total Pengeluaran", `Rp ${expense.toLocaleString("id-ID")}`],
+            ["Saldo Bersih", `Rp ${balance.toLocaleString("id-ID")}`],
           ];
-        });
+          autoTable(doc, {
+            startY: 62,
+            head: [["Keterangan", "Jumlah"]],
+            body: summaryData,
+            theme: "plain",
+            headStyles: { fillColor: [240, 240, 240], textColor: [80, 80, 80], fontSize: 9, fontStyle: "bold" },
+            styles: { fontSize: 9.5, cellPadding: 3.5 },
+            columnStyles: {
+              0: { cellWidth: 60 },
+              1: { fontStyle: "bold", cellWidth: 60 }
+            },
+            didDrawCell: (data) => {
+              if (data.row.index === 3 && data.column.index === 1) {
+                doc.setTextColor(balance >= 0 ? 22 : 220, balance >= 0 ? 163 : 38, balance >= 0 ? 74 : 38);
+              }
+            },
+            margin: { left: 14 },
+            tableWidth: 120
+          });
 
-      autoTable(doc, {
-        startY: afterSummaryY + 12,
-        head: [["No", "Tanggal", "Tipe", "Nominal", "PIC", "Deskripsi", "Saldo"]],
-        body: tableData,
-        theme: "striped",
-        headStyles: { fillColor: [147, 51, 234], textColor: [255, 255, 255], fontSize: 8.5 },
-        styles: { fontSize: 8, cellPadding: 2.5 },
-        columnStyles: {
-          0: { cellWidth: 10 },
-          1: { cellWidth: 22 },
-          2: { cellWidth: 24 },
-          3: { cellWidth: 30 },
-          6: { fontStyle: "bold", cellWidth: 28 }
-        },
-        didParseCell: (data) => {
-          if (data.column.index === 2 && data.section === "body") {
-            data.cell.styles.textColor = data.cell.raw === "Pemasukan" ? [22, 163, 74] : [220, 38, 38];
-          }
+          const lastAutoTable = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable;
+          const afterSummaryY = lastAutoTable.finalY + 8;
+
+          doc.setDrawColor(220, 220, 220);
+          doc.line(14, afterSummaryY, 196, afterSummaryY);
+
+          doc.setFont("helvetica", "bold");
+          doc.setFontSize(10);
+          doc.setTextColor(0, 0, 0);
+          doc.text(`DAFTAR TRANSAKSI – ${periodLabel.toUpperCase()}`, 14, afterSummaryY + 8);
+
+          let runningBalance = openingBalance;
+          const tableData = filteredTransactions
+            .sort((a, b) => a.date - b.date)
+            .map((t, idx) => {
+              runningBalance += t.type === "income" ? t.amount : -t.amount;
+              return [
+                idx + 1,
+                new Date(t.date).toLocaleDateString("id-ID"),
+                t.type === "income" ? "Pemasukan" : "Pengeluaran",
+                `Rp ${t.amount.toLocaleString("id-ID")}`,
+                t.pic,
+                t.description || "-",
+                `Rp ${runningBalance.toLocaleString("id-ID")}`
+              ];
+            });
+
+          autoTable(doc, {
+            startY: afterSummaryY + 12,
+            head: [["No", "Tanggal", "Tipe", "Nominal", "PIC", "Deskripsi", "Saldo"]],
+            body: tableData,
+            theme: "striped",
+            headStyles: { fillColor: [147, 51, 234], textColor: [255, 255, 255], fontSize: 8.5 },
+            styles: { fontSize: 8, cellPadding: 2.5 },
+            columnStyles: {
+              0: { cellWidth: 10 },
+              1: { cellWidth: 22 },
+              2: { cellWidth: 24 },
+              3: { cellWidth: 30 },
+              6: { fontStyle: "bold", cellWidth: 28 }
+            },
+            didParseCell: (data) => {
+              if (data.column.index === 2 && data.section === "body") {
+                data.cell.styles.textColor = data.cell.raw === "Pemasukan" ? [22, 163, 74] : [220, 38, 38];
+              }
+            }
+          });
+
+          const filename = `Laporan_Kas_${currentOrg.name.replace(/\s+/g, "_")}_${currentBranch.name.replace(/\s+/g, "_")}_${selectedMonth}.pdf`;
+          doc.save(filename);
+          showToast("Laporan PDF berhasil diunduh!", "success");
+        } catch (error) {
+          console.error("Gagal mendownload PDF:", error);
+          showToast("Gagal menghasilkan laporan PDF.", "error");
         }
-      });
+      };
+      
+      const handleDownloadExcel = () => {
+        if (!currentOrg || !currentBranch) return;
 
-      const filename = `Laporan_Kas_${currentOrg.name.replace(/\s+/g, "_")}_${currentBranch.name.replace(/\s+/g, "_")}_${selectedMonth}.pdf`;
-      doc.save(filename);
-      showToast("Laporan PDF berhasil diunduh!", "success");
-    } catch (error) {
-      console.error("Gagal mendownload PDF:", error);
-      showToast("Gagal menghasilkan laporan PDF.", "error");
-    }
-  };
+        const [year, month] = selectedMonth.split("-");
+        const periodLabel = new Date(parseInt(year), parseInt(month) - 1, 1)
+          .toLocaleDateString("id-ID", { year: "numeric", month: "long" });
+
+        const income = filteredAnalytics?.totalIncome || 0;
+        const expense = filteredAnalytics?.totalExpense || 0;
+        const balance = filteredAnalytics?.balance || 0;
+        const openingBalance = previousMonthBalance;
+
+        let runningBalance = openingBalance;
+        const rows = filteredTransactions
+          .sort((a, b) => a.date - b.date)
+          .map((t, idx) => {
+            runningBalance += t.type === "income" ? t.amount : -t.amount;
+            return [
+              idx + 1,
+              new Date(t.date).toLocaleDateString("id-ID"),
+              t.type === "income" ? "Pemasukan" : "Pengeluaran",
+              `Rp ${t.amount.toLocaleString("id-ID")}`,
+              t.pic,
+              t.description || "-",
+              `Rp ${runningBalance.toLocaleString("id-ID")}`
+            ];
+          });
+
+        const tableHeader = [
+          ["LAPORAN KAS"],
+          ["Organisasi", currentOrg.name],
+          ["Cabang", currentBranch.name],
+          ["Periode", periodLabel],
+          ["Dicetak", new Date().toLocaleDateString("id-ID")],
+          [],
+          ["Saldo Bulan Lalu", `Rp ${openingBalance.toLocaleString("id-ID")}`],
+          ["Total Pemasukan", `Rp ${income.toLocaleString("id-ID")}`],
+          ["Total Pengeluaran", `Rp ${expense.toLocaleString("id-ID")}`],
+          ["Saldo Bersih", `Rp ${balance.toLocaleString("id-ID")}`],
+          [],
+          ["No", "Tanggal", "Tipe", "Nominal", "PIC", "Deskripsi", "Saldo"]
+        ];
+
+        const rowsHtml = tableHeader.map(row => `<tr>${row.map(cell => `<td style="border:1px solid #ddd;padding:6px;font-size:12px;">${cell}</td>`).join("")}</tr>`).join("");
+        const transactionRowsHtml = rows.map(row => `<tr>${row.map(cell => `<td style="border:1px solid #ddd;padding:6px;font-size:12px;">${cell}</td>`).join("")}</tr>`).join("");
+        const html = `
+          <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+            <head>
+              <!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets><x:ExcelWorksheet><x:Name>Sheet1</x:Name><x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions></x:ExcelWorksheet></x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]-->
+            </head>
+            <body>
+              <table>${rowsHtml}${transactionRowsHtml}</table>
+            </body>
+          </html>`;
+
+        const blob = new Blob([html], { type: "application/vnd.ms-excel" });
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(blob);
+        link.download = `Laporan_Kas_${currentOrg.name.replace(/\s+/g, "_")}_${currentBranch.name.replace(/\s+/g, "_")}_${selectedMonth}.xls`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        showToast("Laporan Excel berhasil diunduh!", "success");
+      };
 
   // ApexCharts Data Formatting
   const getChartOptions = (): ApexCharts.ApexOptions => {
@@ -797,7 +883,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </div>
 
           {/* Action Row */}
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "10px" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "10px", position: "relative" }}>
             <div style={{ textAlign: "left" }}>
               <h4 style={{ fontSize: "1.05rem", fontWeight: 700, margin: 0 }}>
                 Analisis Finansial {currentBranch?.name}
@@ -806,9 +892,40 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 Grafik performa arus kas bulanan
               </p>
             </div>
-            <Button variant="glass" onClick={handleDownloadPDF} disabled={transactions.length === 0} style={{ padding: "10px 14px" }}>
-              <FileText size={18} /> Unduh Laporan (PDF)
-            </Button>
+            <div style={{ position: "relative", display: "inline-flex" }}>
+              {exportMenuOpen && (
+                <div
+                  style={{ position: "fixed", inset: 0, zIndex: 98 }}
+                  onClick={() => setExportMenuOpen(false)}
+                />
+              )}
+              <div style={{ position: "relative", zIndex: 99 }}>
+                <Button
+                  variant="glass"
+                  onClick={() => setExportMenuOpen(open => !open)}
+                  disabled={transactions.length === 0}
+                  style={{ padding: "10px 14px", display: "flex", alignItems: "center", gap: "8px" }}
+                >
+                  <FileText size={18} /> Unduh Laporan <ChevronDown size={14} />
+                </Button>
+                {exportMenuOpen && (
+                  <div style={{ position: "absolute", right: 0, top: "calc(100% + 8px)", background: "var(--panel-bg)", border: "1px solid var(--panel-border)", borderRadius: "14px", boxShadow: "0 18px 40px rgba(0,0,0,0.15)", overflow: "hidden", zIndex: 100, minWidth: "180px" }}>
+                    <button
+                      onClick={() => { setExportMenuOpen(false); handleDownloadPDF(); }}
+                      style={{ width: "100%", border: "none", background: "transparent", color: "var(--text-primary)", padding: "12px 16px", textAlign: "left", cursor: "pointer", fontWeight: 600 }}
+                    >
+                      PDF
+                    </button>
+                    <button
+                      onClick={() => { setExportMenuOpen(false); handleDownloadExcel(); }}
+                      style={{ width: "100%", border: "none", background: "transparent", color: "var(--text-primary)", padding: "12px 16px", textAlign: "left", cursor: "pointer", fontWeight: 600 }}
+                    >
+                      Excel
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
 
           {/* Apexchart Card */}

@@ -62,14 +62,24 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
   const [sortDir, setSortDir] = useState<SortDir>("desc");
 
   // Filter dialog
+  const getDefaultMonthFilters = (): FilterState => {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, "0");
+    const lastDay = new Date(year, Number(month), 0).getDate();
+    return {
+      dateFrom: `${year}-${month}-01`,
+      dateTo: `${year}-${month}-${String(lastDay).padStart(2, "0")}`,
+      amountMin: "",
+      amountMax: "",
+      pic: ""
+    };
+  };
+
   const [filterOpen, setFilterOpen] = useState(false);
   const [filterCoords, setFilterCoords] = useState({ top: 0, left: 0 });
-  const [filters, setFilters] = useState<FilterState>({
-    dateFrom: "", dateTo: "", amountMin: "", amountMax: "", pic: ""
-  });
-  const [activeFilters, setActiveFilters] = useState<FilterState>({
-    dateFrom: "", dateTo: "", amountMin: "", amountMax: "", pic: ""
-  });
+  const [filters, setFilters] = useState<FilterState>(getDefaultMonthFilters());
+  const [activeFilters, setActiveFilters] = useState<FilterState>(getDefaultMonthFilters());
 
   // Form details
   const [isFormOpen, setIsFormOpen] = useState(false);
