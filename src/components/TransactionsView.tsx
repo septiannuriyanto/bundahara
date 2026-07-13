@@ -90,6 +90,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
   const [proofOfPayment, setProofOfPayment] = useState("");
   const [proofFile, setProofFile] = useState<File | null>(null);
   const [viewProofUrl, setViewProofUrl] = useState<string | null>(null);
+  const [transactionDate, setTransactionDate] = useState<string>(new Date().toISOString().slice(0, 10));
 
   // Confirmations
   const [showSaveConfirm, setShowSaveConfirm] = useState(false);
@@ -181,6 +182,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
     setDescription("");
     setProofOfPayment("");
     setProofFile(null);
+    setTransactionDate(new Date().toISOString().slice(0, 10));
     setIsFormOpen(true);
   };
 
@@ -191,6 +193,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
     setDescription(tx.description || "");
     setProofOfPayment(tx.proofOfPayment || "");
     setProofFile(null);
+    setTransactionDate(new Date(tx.date).toISOString().slice(0, 10));
     setIsFormOpen(true);
   };
 
@@ -232,13 +235,13 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
       }
       if (editId) {
         await dbService.updateTransaction(editId, {
-          amount: nominal, pic: pic.trim(), description: description.trim(), proofOfPayment: uploadedUrl
+          amount: nominal, pic: pic.trim(), description: description.trim(), proofOfPayment: uploadedUrl, date: new Date(transactionDate).getTime()
         });
         showToast("Transaksi berhasil diperbarui!", "success");
       } else {
         await dbService.addTransaction(
           selectedOrgId, selectedBranchId, activeTab === "all" ? "income" : activeTab,
-          nominal, Date.now(), pic.trim(), description.trim(), uploadedUrl
+          nominal, new Date(transactionDate).getTime(), pic.trim(), description.trim(), uploadedUrl
         );
         showToast("Transaksi berhasil disimpan!", "success");
       }
@@ -246,6 +249,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
       setEditId(null);
       setProofFile(null);
       setProofOfPayment("");
+      setTransactionDate(new Date().toISOString().slice(0, 10));
       await loadTransactions();
     } catch (error: any) {
       showToast(error.message || "Gagal menyimpan transaksi.", "error");
@@ -393,7 +397,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
           <form onSubmit={handlePreSave} style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "16px", textAlign: "left" }}>
             <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
               <label>Tanggal</label>
-              <input type="text" value={new Date().toLocaleDateString("id-ID")} disabled style={{ backgroundColor: "rgba(255, 255, 255, 0.02)", color: "var(--text-muted)", cursor: "not-allowed" }} />
+              <input type="date" value={transactionDate} onChange={e => setTransactionDate(e.target.value)} style={{ width: "100%", padding: "10px 14px", borderRadius: "8px", fontSize: "0.95rem", border: "1px solid var(--panel-border)", background: "var(--input-bg)", color: "var(--text-primary)" }} />
             </div>
             {activeTab === "all" && !editId && (
               <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
