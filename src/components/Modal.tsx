@@ -34,13 +34,14 @@ export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children }
         style={{
           width: "100%",
           maxWidth: "480px",
-          backgroundColor: "rgba(20, 16, 33, 0.95)",
+          backgroundColor: "var(--modal-bg)",
           padding: "24px",
           display: "flex",
           flexDirection: "column",
           gap: "20px",
-          boxShadow: "0 20px 40px rgba(0, 0, 0, 0.5)",
-          border: "1px solid rgba(255, 255, 255, 0.1)"
+          boxShadow: "0 24px 50px rgba(0, 0, 0, 0.45)",
+          border: "1px solid var(--modal-border)",
+          backdropFilter: "blur(32px)"
         }}
         onClick={(e) => e.stopPropagation()}
       >

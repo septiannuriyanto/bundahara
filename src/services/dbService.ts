@@ -15,7 +15,6 @@ import {
   deleteDoc, 
   query, 
   where, 
-  orderBy, 
   Timestamp 
 } from "firebase/firestore";
 import { auth, db, isMockMode } from "./firebase";
@@ -32,6 +31,7 @@ export interface Organization {
   name: string;
   ownerId: string;
   createdAt: number;
+  logoUrl?: string;
 }
 
 export interface Branch {
@@ -296,15 +296,15 @@ export const dbService = {
     } else {
       const q = query(
         collection(db, "organizations"), 
-        where("ownerId", "==", user.uid),
-        orderBy("createdAt", "asc")
+        where("ownerId", "==", user.uid)
       );
       const snapshot = await getDocs(q);
-      return snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Organization));
+      const orgsList = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Organization));
+      return orgsList.sort((a, b) => a.createdAt - b.createdAt);
     }
   },
 
-  addOrganization: async (name: string, defaultBranchName: string = "PUSAT"): Promise<Organization> => {
+  addOrganization: async (name: string, defaultBranchName: string = "PUSAT", logoUrl?: string): Promise<Organization> => {
     const user = dbService.getCurrentUser();
     if (!user) throw new Error("Pengguna tidak terautentikasi.");
 
@@ -314,7 +314,8 @@ export const dbService = {
         id: `org-${Date.now()}`,
         name,
         ownerId: user.uid,
-        createdAt: Date.now()
+        createdAt: Date.now(),
+        ...(logoUrl ? { logoUrl } : {})
       };
       orgs.push(newOrg);
       setMockData("organizations", orgs);
@@ -325,12 +326,13 @@ export const dbService = {
       return newOrg;
     } else {
       const newDocRef = doc(collection(db, "organizations"));
-      const newOrg = {
+      const newOrg: any = {
         id: newDocRef.id,
         name,
         ownerId: user.uid,
         createdAt: Date.now()
       };
+      if (logoUrl) newOrg.logoUrl = logoUrl;
       await setDoc(newDocRef, newOrg);
       await dbService.addBranch(newDocRef.id, defaultBranchName || "PUSAT");
       return newOrg;
@@ -345,11 +347,11 @@ export const dbService = {
     } else {
       const q = query(
         collection(db, "branches"), 
-        where("organizationId", "==", organizationId),
-        orderBy("createdAt", "asc")
+        where("organizationId", "==", organizationId)
       );
       const snapshot = await getDocs(q);
-      return snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Branch));
+      const branchesList = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Branch));
+      return branchesList.sort((a, b) => a.createdAt - b.createdAt);
     }
   },
 
@@ -378,6 +380,82 @@ export const dbService = {
     }
   },
 
+  updateOrganization: async (id: string, name: string, logoUrl?: string): Promise<void> => {
+    if (isMockMode) {
+      const orgs = getMockData<Organization[]>("organizations", []);
+      const index = orgs.findIndex(o => o.id === id);
+      if (index !== -1) {
+        orgs[index].name = name;
+        if (logoUrl !== undefined) orgs[index].logoUrl = logoUrl;
+        setMockData("organizations", orgs);
+      }
+    } else {
+      const updateData: any = { name };
+      if (logoUrl !== undefined) updateData.logoUrl = logoUrl;
+      await updateDoc(doc(db, "organizations", id), updateData);
+    }
+  },
+
+  deleteOrganization: async (id: string): Promise<void> => {
+    if (isMockMode) {
+      const orgs = getMockData<Organization[]>("organizations", []);
+      setMockData("organizations", orgs.filter(o => o.id !== id));
+      
+      const branches = getMockData<Branch[]>("branches", []);
+      setMockData("branches", branches.filter(b => b.organizationId !== id));
+
+      const txs = getMockData<BalanceSheet[]>("balance_sheets", []);
+      setMockData("balance_sheets", txs.filter(t => t.organizationId !== id));
+    } else {
+      // 1. Delete organization document
+      await deleteDoc(doc(db, "organizations", id));
+
+      // 2. Cascade delete branches in Firestore
+      const branchQuery = query(collection(db, "branches"), where("organizationId", "==", id));
+      const branchSnapshot = await getDocs(branchQuery);
+      const branchDeletePromises = branchSnapshot.docs.map(d => deleteDoc(d.ref));
+      await Promise.all(branchDeletePromises);
+
+      // 3. Cascade delete transactions in Firestore
+      const txQuery = query(collection(db, "balance_sheets"), where("organizationId", "==", id));
+      const txSnapshot = await getDocs(txQuery);
+      const txDeletePromises = txSnapshot.docs.map(d => deleteDoc(d.ref));
+      await Promise.all(txDeletePromises);
+    }
+  },
+
+  updateBranch: async (id: string, name: string): Promise<void> => {
+    if (isMockMode) {
+      const branches = getMockData<Branch[]>("branches", []);
+      const index = branches.findIndex(b => b.id === id);
+      if (index !== -1) {
+        branches[index].name = name;
+        setMockData("branches", branches);
+      }
+    } else {
+      await updateDoc(doc(db, "branches", id), { name });
+    }
+  },
+
+  deleteBranch: async (id: string): Promise<void> => {
+    if (isMockMode) {
+      const branches = getMockData<Branch[]>("branches", []);
+      setMockData("branches", branches.filter(b => b.id !== id));
+
+      const txs = getMockData<BalanceSheet[]>("balance_sheets", []);
+      setMockData("balance_sheets", txs.filter(t => t.branchId !== id));
+    } else {
+      // 1. Delete branch document
+      await deleteDoc(doc(db, "branches", id));
+
+      // 2. Cascade delete transactions in Firestore
+      const txQuery = query(collection(db, "balance_sheets"), where("branchId", "==", id));
+      const txSnapshot = await getDocs(txQuery);
+      const txDeletePromises = txSnapshot.docs.map(d => deleteDoc(d.ref));
+      await Promise.all(txDeletePromises);
+    }
+  },
+
   // --- BALANCE SHEETS (TRANSACTIONS) ---
   getTransactions: async (organizationId: string, branchId: string): Promise<BalanceSheet[]> => {
     if (isMockMode) {
@@ -389,11 +467,11 @@ export const dbService = {
       const q = query(
         collection(db, "balance_sheets"),
         where("organizationId", "==", organizationId),
-        where("branchId", "==", branchId),
-        orderBy("date", "desc")
+        where("branchId", "==", branchId)
       );
       const snapshot = await getDocs(q);
-      return snapshot.docs.map(d => ({ id: d.id, ...d.data() } as BalanceSheet));
+      const txsList = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as BalanceSheet));
+      return txsList.sort((a, b) => b.date - a.date);
     }
   },
 

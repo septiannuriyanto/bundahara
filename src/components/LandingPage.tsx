@@ -2,23 +2,28 @@ import React from "react";
 import type { UserProfile } from "../services/dbService";
 import { Button } from "./Button";
 import { BookOpen, Shield, TrendingUp } from "lucide-react";
+import { ThemeSwitcher } from "./ThemeSwitcher";
 
 interface LandingPageProps {
   currentUser: UserProfile | null;
   onNavigate: (view: "dashboard" | "auth" | "landing") => void;
   onLogout: () => void;
+  theme: "light" | "dark" | "system";
+  onThemeChange: (theme: "light" | "dark" | "system") => void;
 }
 
 export const LandingPage: React.FC<LandingPageProps> = ({
   currentUser,
   onNavigate,
-  onLogout
+  onLogout,
+  theme,
+  onThemeChange
 }) => {
   return (
     <div style={{ display: "flex", flexDirection: "column", minHeight: "100vh" }}>
       {/* Dynamic Header */}
       <header
-        className="glass-panel"
+        className="glass-panel landing-header"
         style={{
           position: "sticky",
           top: "16px",
@@ -76,11 +81,14 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               </Button>
             </>
           )}
+          <div style={{ marginLeft: "8px", display: "flex", alignItems: "center" }}>
+            <ThemeSwitcher theme={theme} onThemeChange={onThemeChange} />
+          </div>
         </nav>
       </header>
 
       {/* Hero Section */}
-      <main style={{ flex: 1, padding: "80px 24px", display: "flex", flexDirection: "column", gap: "90px", maxWidth: "1200px", margin: "0 auto", width: "100%" }}>
+      <main className="landing-main" style={{ flex: 1, padding: "80px 24px", display: "flex", flexDirection: "column", gap: "90px", maxWidth: "1200px", margin: "0 auto", width: "100%" }}>
         <section style={{ textAlign: "center", display: "flex", flexDirection: "column", alignItems: "center", gap: "24px" }}>
           <div
             style={{
@@ -135,7 +143,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         </section>
 
         {/* Features grid */}
-        <section style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: "24px" }}>
+        <section className="landing-features" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: "24px" }}>
           <div className="glass-panel" style={{ padding: "32px", display: "flex", flexDirection: "column", gap: "16px", textAlign: "left" }}>
             <div
               style={{

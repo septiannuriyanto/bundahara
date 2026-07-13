@@ -3,13 +3,16 @@
 :root {
   --font-sans: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
   
-  /* Color Palette - Deep Dark Obsidian & Purplish Accents */
+  /* Dark Theme variables (Default) */
   --bg-gradient: radial-gradient(circle at 50% 50%, #1a1528 0%, #0c0a12 100%);
   --bg-color: #0c0a12;
   
   --panel-bg: rgba(20, 16, 33, 0.45);
+  --panel-bg-solid: #1a1528;   /* fallback for no backdrop-filter */
   --panel-border: rgba(255, 255, 255, 0.08);
   --panel-glow: rgba(147, 51, 234, 0.05);
+  --modal-bg: #18142c;
+  --modal-border: rgba(255, 255, 255, 0.15);
   
   --color-primary: #a855f7;
   --color-primary-glow: rgba(168, 85, 247, 0.35);
@@ -28,6 +31,56 @@
   --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   
   color-scheme: dark;
+}
+
+/* Light Theme Variables */
+:root[data-theme="light"] {
+  --bg-gradient: radial-gradient(circle at 50% 50%, #f9f8fc 0%, #eef0f6 100%);
+  --bg-color: #eef0f6;
+  
+  --panel-bg: rgba(255, 255, 255, 0.65);
+  --panel-bg-solid: #ffffff;   /* fallback for no backdrop-filter */
+  --panel-border: rgba(0, 0, 0, 0.06);
+  --panel-glow: rgba(147, 51, 234, 0.02);
+  --modal-bg: #ffffff;
+  --modal-border: rgba(0, 0, 0, 0.12);
+  
+  --color-primary: #8b5cf6;
+  --color-primary-glow: rgba(139, 92, 246, 0.15);
+  --color-secondary: #db2777;
+  --color-secondary-glow: rgba(219, 39, 119, 0.15);
+  
+  --text-primary: #1f2937;
+  --text-secondary: #4b5563;
+  --text-muted: #9ca3af;
+  
+  color-scheme: light;
+}
+
+/* System preferences fallback to Light Theme */
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    --bg-gradient: radial-gradient(circle at 50% 50%, #f9f8fc 0%, #eef0f6 100%);
+    --bg-color: #eef0f6;
+    
+    --panel-bg: rgba(255, 255, 255, 0.65);
+    --panel-bg-solid: #ffffff;
+    --panel-border: rgba(0, 0, 0, 0.06);
+    --panel-glow: rgba(147, 51, 234, 0.02);
+    --modal-bg: #ffffff;
+    --modal-border: rgba(0, 0, 0, 0.12);
+    
+    --color-primary: #8b5cf6;
+    --color-primary-glow: rgba(139, 92, 246, 0.15);
+    --color-secondary: #db2777;
+    --color-secondary-glow: rgba(219, 39, 119, 0.15);
+    
+    --text-primary: #1f2937;
+    --text-secondary: #4b5563;
+    --text-muted: #9ca3af;
+    
+    color-scheme: light;
+  }
 }
 
 * {
@@ -65,19 +118,59 @@ body {
 }
 
 /* --- GLASSMORPHISM CLASS --- */
+/* Solid fallback for browsers without backdrop-filter support */
 .glass-panel {
-  background: var(--panel-bg);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
+  background: var(--panel-bg-solid, #1a1528);
   border: 1px solid var(--panel-border);
   border-radius: 16px;
   box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
   transition: var(--transition-smooth);
 }
 
+/* Apply glassmorphism only when supported */
+@supports (backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px)) {
+  .glass-panel {
+    background: var(--panel-bg);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+  }
+}
+
 .glass-panel:hover {
   border-color: rgba(255, 255, 255, 0.12);
   box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.45), 0 0 15px var(--panel-glow);
+}
+
+/* Desktop sidebar should match the current panel theme */
+.sidebar {
+  background: var(--panel-bg);
+  border: 1px solid var(--panel-border);
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.10);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+.sidebar-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.32);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  z-index: 95;
+  pointer-events: auto;
+  opacity: 0;
+  animation: fadeInOverlay 0.28s ease forwards;
+}
+
+@media (min-width: 993px) {
+  .sidebar-overlay {
+    display: none !important;
+  }
+}
+
+@keyframes fadeInOverlay {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 /* Accent Gradients */
@@ -183,19 +276,79 @@ label {
     margin: 0 !important;
     border-radius: 0 16px 16px 0 !important;
     transition: var(--transition-smooth) !important;
-    box-shadow: 10px 0 30px rgba(0, 0, 0, 0.6) !important;
+    box-shadow: 10px 0 30px rgba(0, 0, 0, 0.3) !important;
   }
   
   .sidebar.open {
     left: 0 !important;
   }
   
+  .sidebar-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.45);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    z-index: 95;
+    pointer-events: auto;
+  }
+  
+  /* Show hamburger button on small screens */
   .hamburger-btn {
+    display: flex !important;
+  }
+
+  /* Show the in-sidebar collapse button on small screens */
+  .sidebar-collapse-btn {
     display: flex !important;
   }
   
   .main-dashboard-content {
     padding: 80px 20px 24px !important;
   }
+
+  .dashboard-summary-grid,
+  .transactions-summary-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Sidebar: fully opaque on mobile — no bleed-through */
+  .sidebar {
+    background: var(--panel-bg-solid) !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
 }
 
+/* ── Landing Page Mobile ───────────────────────────────────────── */
+@media (max-width: 600px) {
+  /* Header: reduce margin and padding on mobile */
+  .landing-header {
+    margin: 8px 12px 0 !important;
+    padding: 12px 16px !important;
+    top: 8px !important;
+  }
+
+  /* Nav: wrap and reduce gap */
+  .landing-header nav {
+    gap: 8px !important;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+
+  /* Hide theme switcher label, keep only icons */
+  .landing-header .theme-label {
+    display: none;
+  }
+
+  /* Hero: less top padding on mobile */
+  .landing-main {
+    padding: 48px 16px !important;
+    gap: 56px !important;
+  }
+
+  /* Feature cards: single column */
+  .landing-features {
+    grid-template-columns: 1fr !important;
+  }
+}

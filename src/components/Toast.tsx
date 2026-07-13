@@ -56,7 +56,10 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                   ? "var(--color-error)"
                   : "var(--color-primary)"
               }`,
-              background: "rgba(20, 16, 33, 0.9)"
+              background: "var(--modal-bg)",
+              borderTop: "1px solid var(--modal-border)",
+              borderRight: "1px solid var(--modal-border)",
+              borderBottom: "1px solid var(--modal-border)"
             }}
           >
             {t.type === "success" && <CheckCircle2 color="var(--color-success)" size={20} />}

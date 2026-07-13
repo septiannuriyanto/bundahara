@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { dbService } from "./services/dbService";
 import type { UserProfile, Organization, Branch } from "./services/dbService";
 import { isMockMode } from "./services/firebase";
@@ -15,17 +16,53 @@ import {
   User, 
   LogOut, 
   Menu, 
-  X, 
   Info,
-  Building
+  Building,
+  ChevronLeft
 } from "lucide-react";
+import { ThemeSwitcher } from "./components/ThemeSwitcher";
 import "./App.css";
 
 function AppContent() {
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
-  const [view, setView] = useState<"landing" | "dashboard" | "auth">("landing");
-  const [sidebarActiveTab, setSidebarActiveTab] = useState<"dashboard" | "transactions" | "account">("dashboard");
+  const [authLoading, setAuthLoading] = useState(true);
+  
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  // Derive views and active tabs directly from location path
+  let view: "landing" | "dashboard" | "auth" = "landing";
+  let sidebarActiveTab: "dashboard" | "transactions" | "account" = "dashboard";
+
+  if (location.pathname === "/auth") {
+    view = "auth";
+  } else if (location.pathname === "/dashboard") {
+    view = "dashboard";
+    sidebarActiveTab = "dashboard";
+  } else if (location.pathname.startsWith("/transactions")) {
+    view = "dashboard";
+    sidebarActiveTab = "transactions";
+  } else if (location.pathname === "/account") {
+    view = "dashboard";
+    sidebarActiveTab = "account";
+  } else {
+    view = "landing";
+  }
+
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [theme, setTheme] = useState<"light" | "dark" | "system">(() => {
+    return (localStorage.getItem("theme") as any) || "system";
+  });
+
+  useEffect(() => {
+    const root = document.documentElement;
+    if (theme === "system") {
+      root.removeAttribute("data-theme");
+    } else {
+      root.setAttribute("data-theme", theme);
+    }
+    localStorage.setItem("theme", theme);
+  }, [theme]);
 
   // App Level Data
   const [organizations, setOrganizations] = useState<Organization[]>([]);
@@ -36,24 +73,38 @@ function AppContent() {
 
   const { showToast } = useToast();
 
-  // Auth Listener
+  // Redirect if not authenticated on private routes
+  // IMPORTANT: skip while authLoading so we never redirect before Firebase resolves
+  useEffect(() => {
+    if (authLoading) return;
+    if (!currentUser && ["/dashboard", "/transactions", "/account"].some(p => location.pathname.startsWith(p))) {
+      navigate("/");
+    }
+  }, [authLoading, currentUser, location.pathname, navigate]);
+
+  // Auth Listener — runs only once on mount
   useEffect(() => {
     const unsubscribe = dbService.onAuthChange((user) => {
       setCurrentUser(user);
+      setAuthLoading(false);
       if (user) {
-        // Logged in
-        if (view === "auth" || view === "landing") {
-          setView("dashboard");
+        // Logged in: redirect away from auth/landing
+        const path = window.location.pathname;
+        if (path === "/auth" || path === "/") {
+          navigate("/dashboard");
         }
       } else {
-        // Logged out - only redirect to landing if currently on dashboard
-        if (view === "dashboard") {
-          setView("landing");
+        // Logged out: redirect away from private routes
+        const path = window.location.pathname;
+        if (["/dashboard", "/transactions", "/account"].some(p => path.startsWith(p))) {
+          navigate("/");
         }
       }
     });
     return () => unsubscribe();
-  }, [view]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // intentionally empty — register listener once only
+
 
   // Load organizations on login/refresh
   useEffect(() => {
@@ -108,7 +159,7 @@ function AppContent() {
     try {
       await dbService.logout();
       showToast("Anda telah berhasil keluar.", "success");
-      setView("landing");
+      navigate("/");
     } catch (error: any) {
       showToast("Gagal keluar akun.", "error");
     }
@@ -125,7 +176,7 @@ function AppContent() {
       case "dashboard":
         return (
           <DashboardView
-            onNavigateToTransactions={() => setSidebarActiveTab("transactions")}
+            onNavigateToTransactions={() => navigate("/transactions")}
             organizations={organizations}
             branches={branches}
             selectedOrgId={selectedOrgId}
@@ -145,10 +196,20 @@ function AppContent() {
             </div>
           );
         }
+        const currentOrg = organizations.find(o => o.id === selectedOrgId);
+        const currentBranch = branches[selectedOrgId]?.find(b => b.id === selectedBranchId);
+        // Derive initial tab from URL sub-path
+        const txPath = location.pathname;
+        const initialTab = txPath === "/transactions/income" ? "income"
+          : txPath === "/transactions/expense" ? "expense"
+          : "all";
         return (
           <TransactionsView
             selectedOrgId={selectedOrgId}
             selectedBranchId={selectedBranchId}
+            orgName={currentOrg?.name}
+            branchName={currentBranch?.name}
+            initialTab={initialTab as any}
           />
         );
       case "account":
@@ -169,8 +230,10 @@ function AppContent() {
     return (
       <LandingPage
         currentUser={currentUser}
-        onNavigate={(target) => setView(target)}
+        onNavigate={(target) => navigate(target === "auth" ? "/auth" : "/")}
         onLogout={handleLogout}
+        theme={theme}
+        onThemeChange={setTheme}
       />
     );
   }
@@ -179,15 +242,49 @@ function AppContent() {
   if (view === "auth") {
     return (
       <AuthPages
-        onAuthSuccess={() => setView("dashboard")}
-        onNavigateHome={() => setView("landing")}
+        onAuthSuccess={() => navigate("/dashboard")}
+        onNavigateHome={() => navigate("/")}
       />
     );
   }
 
   // 3. MAIN DASHBOARD SHELL
   return (
-    <div style={{ display: "flex", minHeight: "100vh", position: "relative" }}>
+    <>
+    {/* Full-screen auth loader — shown until Firebase resolves session */}
+    {authLoading && (
+      <div style={{
+        position: "fixed", inset: 0,
+        display: "flex", flexDirection: "column",
+        alignItems: "center", justifyContent: "center",
+        background: "var(--bg-primary)",
+        gap: "20px", zIndex: 9999
+      }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "12px", animation: "fadeIn 0.4s ease-out" }}>
+          <div style={{
+            width: "48px", height: "48px", borderRadius: "14px",
+            background: "linear-gradient(135deg, var(--color-primary), var(--color-secondary))",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            fontSize: "1.5rem", boxShadow: "0 4px 20px rgba(168,85,247,0.35)"
+          }}>💰</div>
+          <span style={{
+            fontSize: "1.6rem", fontWeight: 800,
+            background: "linear-gradient(135deg, var(--color-primary), var(--color-secondary))",
+            WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent"
+          }}>Bundahara</span>
+        </div>
+        <div style={{
+          width: "36px", height: "36px",
+          border: "3px solid rgba(168,85,247,0.2)",
+          borderTopColor: "var(--color-primary)",
+          borderRadius: "50%",
+          animation: "spin 0.75s linear infinite"
+        }} />
+        <p style={{ color: "var(--text-muted)", fontSize: "0.9rem" }}>Memuat sesi...</p>
+        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+      </div>
+    )}
+    <div style={{ display: "flex", minHeight: "100vh", position: "relative", visibility: authLoading ? "hidden" : "visible" }}>
       {/* Mock Mode Alert Banner */}
       {isMockMode && (
         <div
@@ -221,26 +318,37 @@ function AppContent() {
         </div>
       )}
 
-      {/* Hamburger Menu button for responsive sidebar */}
-      <button
-        onClick={() => setSidebarOpen(!sidebarOpen)}
-        style={{
-          position: "fixed",
-          top: "16px",
-          left: "16px",
-          zIndex: 101,
-          padding: "8px",
-          borderRadius: "8px",
-          background: "rgba(20, 16, 33, 0.8)",
-          border: "1px solid var(--panel-border)",
-          color: "var(--text-primary)",
-          cursor: "pointer",
-          display: "none" // Managed dynamically by media queries
-        }}
-        className="hamburger-btn"
-      >
-        {sidebarOpen ? <X size={20} /> : <Menu size={20} />}
-      </button>
+      {/* Hamburger Menu button for responsive sidebar – hidden when sidebar is open */}
+      {!sidebarOpen && (
+        <button
+          onClick={() => setSidebarOpen(true)}
+          style={{
+            position: "fixed",
+            top: "16px",
+            left: "16px",
+            zIndex: 101,
+            padding: "8px",
+            borderRadius: "8px",
+            background: "var(--panel-bg)",
+            border: "1px solid var(--panel-border)",
+            color: "var(--text-primary)",
+            cursor: "pointer",
+            backdropFilter: "blur(12px)",
+            display: "none" // Managed dynamically by media queries
+          }}
+          className="hamburger-btn"
+        >
+          <Menu size={20} />
+        </button>
+      )}
+
+      {sidebarOpen && (
+        <div
+          className="sidebar-overlay"
+          onClick={() => setSidebarOpen(false)}
+          aria-hidden="true"
+        />
+      )}
 
       {/* Sidebar Component */}
       <aside
@@ -255,35 +363,57 @@ function AppContent() {
           height: "calc(100vh - 32px)",
           position: "sticky",
           top: "16px",
-          backgroundColor: "rgba(20, 16, 33, 0.65)",
           borderRadius: "16px",
           zIndex: 100
         }}
       >
         {/* Brand */}
-        <div 
-          style={{ display: "flex", alignItems: "center", gap: "10px", cursor: "pointer" }}
-          onClick={() => setView("landing")}
-        >
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <div
-            className="bg-gradient-accent"
+            style={{ display: "flex", alignItems: "center", gap: "10px", cursor: "pointer" }}
+            onClick={() => navigate("/")}
+          >
+            <div
+              className="bg-gradient-accent"
+              style={{
+                width: "36px",
+                height: "36px",
+                borderRadius: "10px",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontWeight: 800,
+                fontSize: "1.2rem",
+                color: "#fff"
+              }}
+            >
+              B
+            </div>
+            <span style={{ fontSize: "1.25rem", fontWeight: 800, letterSpacing: "-0.5px" }}>
+              bundahara<span style={{ color: "var(--color-primary)" }}>.</span>
+            </span>
+          </div>
+          {/* Collapse sidebar button – only visible on mobile */}
+          <button
+            className="sidebar-collapse-btn"
+            onClick={() => setSidebarOpen(false)}
             style={{
-              width: "36px",
-              height: "36px",
-              borderRadius: "10px",
-              display: "flex",
+              background: "none",
+              border: "none",
+              color: "var(--text-secondary)",
+              cursor: "pointer",
+              padding: "6px",
+              borderRadius: "8px",
+              display: "none",
               alignItems: "center",
               justifyContent: "center",
-              fontWeight: 800,
-              fontSize: "1.2rem",
-              color: "#fff"
+              transition: "var(--transition-smooth)"
             }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = "var(--color-primary-glow)"; e.currentTarget.style.color = "var(--color-primary)"; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = "none"; e.currentTarget.style.color = "var(--text-secondary)"; }}
           >
-            B
-          </div>
-          <span style={{ fontSize: "1.25rem", fontWeight: 800, letterSpacing: "-0.5px" }}>
-            bundahara<span style={{ color: "var(--color-primary)" }}>.</span>
-          </span>
+            <ChevronLeft size={20} />
+          </button>
         </div>
 
         {/* User Card */}
@@ -329,26 +459,32 @@ function AppContent() {
         {/* Sidebar Nav Actions */}
         <nav style={{ display: "flex", flexDirection: "column", gap: "8px", flex: 1 }}>
           <button
-            onClick={() => { setSidebarActiveTab("dashboard"); setSidebarOpen(false); }}
+            onClick={() => { navigate("/dashboard"); setSidebarOpen(false); }}
             style={getSidebarNavItemStyle(sidebarActiveTab === "dashboard", "dashboard")}
           >
             <LayoutDashboard size={18} /> Dashboard
           </button>
 
           <button
-            onClick={() => { setSidebarActiveTab("transactions"); setSidebarOpen(false); }}
+            onClick={() => { navigate("/transactions"); setSidebarOpen(false); }}
             style={getSidebarNavItemStyle(sidebarActiveTab === "transactions", "transactions")}
           >
             <BookOpen size={18} /> Input Transaksi
           </button>
 
           <button
-            onClick={() => { setSidebarActiveTab("account"); setSidebarOpen(false); }}
+            onClick={() => { navigate("/account"); setSidebarOpen(false); }}
             style={getSidebarNavItemStyle(sidebarActiveTab === "account", "account")}
           >
             <User size={18} /> Akun
           </button>
         </nav>
+
+        {/* Theme Switcher in Sidebar */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0 8px" }}>
+          <span style={{ fontSize: "0.85rem", fontWeight: 600, color: "var(--text-secondary)" }}>Tema</span>
+          <ThemeSwitcher theme={theme} onThemeChange={setTheme} />
+        </div>
 
         {/* Logout Bottom */}
         <button
@@ -400,6 +536,7 @@ function AppContent() {
         isDanger={true}
       />
     </div>
+    </>
   );
 }
 
